@@ -29,7 +29,7 @@ export default function PantryScreen() {
     setDraft('');
   };
 
-  if (status === 'loading') return <Loading />;
+  if (status === 'loading' || status === 'idle') return <Loading />;
 
   return (
     <Screen>

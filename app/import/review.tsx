@@ -24,6 +24,7 @@ export default function ReviewScreen() {
 
   const [form, setForm] = useState<FormState>();
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
     if (pending) setForm(toForm(pending.draft));
@@ -67,11 +68,16 @@ export default function ReviewScreen() {
       };
 
       const existing = pending.editingRecipeId ? library.getRecipe(pending.editingRecipeId) : undefined;
-      const recipe = draftToRecipe(draft, {
-        cookbookId:
-          existing?.cookbookId ?? cookbooks.find((c) => !c.deletedAt)?.id ?? library.defaultCookbookId(),
-        createdBy: user?.id,
-      });
+      const cookbookId =
+        existing?.cookbookId ?? cookbooks.find((c) => !c.deletedAt)?.id ?? library.defaultCookbookId();
+      if (!cookbookId) {
+        // The cookbook is created on the server at sign-in, so this only happens
+        // if that first request has not landed yet.
+        setError('Your cookbook is still opening. Try again in a moment.');
+        return;
+      }
+
+      const recipe = draftToRecipe(draft, { cookbookId, createdBy: user?.id });
 
       // Editing keeps the recipe's identity and history; only the content changes.
       const saved = await library.saveRecipe(
@@ -105,6 +111,8 @@ export default function ReviewScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }} keyboardShouldPersistTaps="handled">
+        {error ? <Notice tone="danger" title="Could not save">{error}</Notice> : null}
+
         {confidence !== undefined && confidence < 0.7 ? (
           <Notice tone="warning" title="Read this one over carefully">
             Some of this was hard to make out. Check the amounts before you save.

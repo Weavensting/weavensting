@@ -28,7 +28,7 @@ export default function RecipeScreen() {
     [recipe, pantry, hasPantry],
   );
 
-  if (status === 'loading') return <Loading />;
+  if (status === 'loading' || status === 'idle') return <Loading />;
   if (!recipe) {
     return (
       <Screen>

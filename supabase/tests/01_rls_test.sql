@@ -33,6 +33,15 @@ values ('bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-0000000
         'Skillet Cornbread', '[{"item":"yellow cornmeal"},{"item":"buttermilk"}]'::jsonb,
         array['bread','southern']);
 
+-- PostgREST always inserts with RETURNING, which makes Postgres apply the
+-- select policy to the brand-new row. Membership is added by an AFTER trigger,
+-- so a policy that only checked membership would reject the owner here.
+\echo '1b. owner can read back a cookbook they insert with RETURNING:'
+with created as (
+  insert into cookbooks (name, owner_id) values ('Returning Check', auth.uid()) returning id
+)
+select count(*) = 1 as pass from created;
+
 \echo '2. owner sees own recipe:'
 select count(*) = 1 as pass from recipes;
 

@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Alert, Platform, ScrollView, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { isCloudConfigured, isGoogleConfigured } from '../../src/config';
-import { sync, type SyncResult } from '../../src/data/sync';
 import { signOutEverywhere } from '../../src/auth/providers';
 import { displayName } from '../../src/auth/store';
+import { library } from '../../src/data/repository';
 import { useAuth } from '../../src/state/useAuth';
 import { useLibrary } from '../../src/state/useLibrary';
 import { Body, Button, Card, Divider, Heading, Notice, Screen } from '../../src/ui/components';
@@ -13,37 +12,41 @@ import { spacing, useTheme } from '../../src/ui/theme';
 
 export default function SettingsScreen() {
   const theme = useTheme();
-  const router = useRouter();
-  const { recipes, pantry, cookbooks } = useLibrary();
+  const { recipes, pantry, cookbooks, online, pending, error } = useLibrary();
   const { status, user } = useAuth();
 
-  const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<SyncResult>();
+  const [refreshing, setRefreshing] = useState(false);
+  const [message, setMessage] = useState<string>();
 
   const liveRecipes = recipes.filter((r) => !r.deletedAt).length;
 
-  const runSync = async () => {
-    setSyncing(true);
+  const refresh = async () => {
+    setRefreshing(true);
+    setMessage(undefined);
     try {
-      setResult(await sync());
+      await library.refresh();
+      const after = library.getSnapshot();
+      setMessage(
+        after.online
+          ? 'Up to date with the family.'
+          : `Still offline${after.pending > 0 ? `, ${after.pending} change${after.pending === 1 ? '' : 's'} waiting` : ''}.`,
+      );
     } finally {
-      setSyncing(false);
+      setRefreshing(false);
     }
   };
 
   const confirmSignOut = () => {
-    const out = () => {
-      void signOutEverywhere();
-      setResult(undefined);
-    };
-    Alert.alert(
-      'Sign out?',
-      'Your recipes stay on this device. You will stop receiving the family’s changes until you sign back in.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign out', style: 'destructive', onPress: out },
-      ],
-    );
+    const out = () => void signOutEverywhere();
+    const warning =
+      pending > 0
+        ? `${pending} change${pending === 1 ? '' : 's'} have not reached the server yet and will be lost. Sign out anyway?`
+        : 'Your cookbook stays on the server. This device will stop showing it until you sign back in.';
+
+    Alert.alert('Sign out?', warning, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: out },
+    ]);
   };
 
   return (
@@ -65,59 +68,58 @@ export default function SettingsScreen() {
               </View>
               <Button label="Sign out" variant="danger" onPress={confirmSignOut} />
             </>
-          ) : status === 'unavailable' ? (
-            <>
-              <Body muted>
-                Accounts need a Supabase project. Add the URL and anon key to .env and restart — see
-                docs/setup.md. Everything else works without one.
-              </Body>
-            </>
           ) : (
-            <>
-              <Body muted>
-                Signed out. The cookbook works fine like this — signing in syncs it with the family
-                and turns on photo and dictation import.
-              </Body>
-              <Button label="Sign in" onPress={() => router.push('/sign-in')} />
-              {!isGoogleConfigured && isCloudConfigured ? (
-                <Body muted style={{ fontSize: 12 }}>
-                  Google sign-in also needs its client IDs in .env.
-                  {Platform.OS === 'ios' ? ' Sign in with Apple works without them.' : ''}
-                </Body>
-              ) : null}
-            </>
+            <Body muted>
+              Not signed in.
+              {!isGoogleConfigured && isCloudConfigured
+                ? ' Google sign-in also needs its client IDs in .env.'
+                : ''}
+              {Platform.OS === 'ios' ? ' Sign in with Apple works without them.' : ''}
+            </Body>
           )}
         </Card>
 
-        <Card style={{ gap: spacing.sm }}>
-          <Heading level={3}>This device</Heading>
+        <Card style={{ gap: spacing.md }}>
+          <Heading level={3}>Your cookbook</Heading>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Ionicons
+              name={online ? 'cloud-done-outline' : 'cloud-offline-outline'}
+              size={20}
+              color={online ? theme.success : theme.warning}
+            />
+            <Body muted style={{ flex: 1 }}>
+              {online
+                ? 'In sync with the family.'
+                : pending > 0
+                  ? `Offline. ${pending} change${pending === 1 ? '' : 's'} will go up when you reconnect.`
+                  : 'Offline. Showing the last copy from this device.'}
+            </Body>
+          </View>
+
           <Body muted>
             {liveRecipes} {liveRecipes === 1 ? 'recipe' : 'recipes'} in {cookbooks.length}{' '}
             {cookbooks.length === 1 ? 'cookbook' : 'cookbooks'} ·{' '}
             {pantry.filter((p) => !p.deletedAt).length} pantry items
           </Body>
-          <Body muted>
-            Everything is stored on this device and works with no signal. Sharing with the family is
-            what the cloud adds.
-          </Body>
+
+          <Button label="Refresh" variant="secondary" onPress={() => void refresh()} loading={refreshing} />
+          {message ? <Notice tone={online ? 'success' : 'warning'}>{message}</Notice> : null}
+          {error ? <Notice tone="danger">{error}</Notice> : null}
         </Card>
 
-        {status === 'signed-in' ? (
-          <Card style={{ gap: spacing.md }}>
-            <Heading level={3}>Family sharing</Heading>
-            <Body muted>Sync pushes your changes up and pulls in what everyone else added.</Body>
-            <Button label="Sync now" onPress={() => void runSync()} loading={syncing} />
-            {result ? (
-              <Notice tone={result.status === 'error' ? 'danger' : 'success'}>
-                {result.status === 'error'
-                  ? result.error ?? 'Sync failed.'
-                  : result.status === 'signed-out'
-                    ? 'Sign in to sync with the family.'
-                    : `Sent ${result.pushed}, received ${result.pulled}.`}
-              </Notice>
-            ) : null}
-          </Card>
-        ) : null}
+        <Card style={{ gap: spacing.sm }}>
+          <Heading level={3}>Where your recipes live</Heading>
+          <Body muted>
+            On the server, shared with everyone in the cookbook — one copy, so an edit on one phone
+            is the same edit everywhere.
+          </Body>
+          <Divider />
+          <Body muted>
+            This device keeps a copy so the app opens instantly and a recipe stays readable with no
+            signal. Anything you change offline goes up when you reconnect.
+          </Body>
+        </Card>
 
         <Card style={{ gap: spacing.sm }}>
           <Heading level={3}>How importing works</Heading>

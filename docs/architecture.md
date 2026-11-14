@@ -10,49 +10,80 @@ versus `platformStore.web.ts` — rather than the code branching at runtime. Tha
 keeps expo-sqlite's WebAssembly worker out of the web bundle entirely, and keeps
 IndexedDB out of the native one.
 
-## Local-first, sync second
+## One database, cached on the device
 
-Every write lands on the device immediately and is marked for sync. Nothing the
-cook does waits on a network round trip, and the app is fully usable in a
-kitchen with no signal — which is most kitchens.
+The cookbook is collective: several people read and write the same recipes. So
+Supabase holds the data and the device holds a copy of it.
 
 ```
-screen → library (in-memory) → DocumentStore (SQLite | IndexedDB) → sync → Supabase
+screen → library (in memory) → DocumentStore (SQLite | IndexedDB)   ← cache
+              ↓                                                      
+          Supabase  ← the source of truth; every write goes here first
+              ↓
+          realtime → other devices
 ```
 
-**The store is deliberately dumb.** It saves and loads opaque JSON documents by
-collection and id. That is all.
+**Writes go to the server and the row the server returns is what gets kept** —
+never the object the app sent. That means `updated_at`, defaults and anything a
+trigger touches are always the stored values, and two people editing the same
+recipe are serialised by the database like in any other shared system. There is
+no client-side merge and no last-write-wins.
 
-**All the interesting logic runs in memory**, over the full recipe set. Searching,
-pantry matching and macro filtering are plain TypeScript functions in
-`src/domain` — one implementation, shared by every platform, testable in
-milliseconds without a database or a simulator.
+**The local store is a cache, not a peer.** It exists so the app opens instantly
+and so a recipe stays readable in a kitchen with no signal, which is most
+kitchens. It is scoped to the signed-in account and cleared on sign-out,
+because it is the server's data and not the device's.
 
-This is a deliberate trade against scale. A family cookbook is hundreds of
-recipes, maybe a few thousand. Loading all of it is cheap, and it buys
-synchronous reads, no query-language duplication between SQLite and IndexedDB,
-and a search implementation you can unit test. If a cookbook ever grew past
-what fits comfortably in memory, the `DocumentStore` interface is the seam to
-push filtering down into.
+**Reads stay in memory.** Searching, pantry matching and macro filtering are
+plain TypeScript functions in `src/domain`, running over the whole set — one
+implementation shared by every platform, testable in milliseconds without a
+database or a simulator. A family cookbook is hundreds of recipes, maybe a few
+thousand, so loading all of it is cheap. If one ever outgrew memory, the
+`DocumentStore` interface is the seam to push filtering down into.
+
+### An earlier version of this got it wrong
+
+The first cut was local-first: the device authored writes independently and a
+sync pass reconciled them last-write-wins. That is the right shape for a
+single-user notes app and the wrong one here, and it produced a concrete bug —
+two phones each adding "eggs" invented two different ids, both upserted on id,
+and the second violated the unique index on `(user_id, lower(name))`, breaking
+sync outright.
+
+The fix is not a cleverer merge. Name uniqueness is a property of the data, not
+of whichever phone typed it, so the decision belongs on the server:
+`upsert_pantry_item` makes it once, under the index. The same reasoning put
+`ensure_default_cookbook` there — signing in on two devices at once would
+otherwise make two cookbooks.
+
+### Offline writes
+
+A failed write is either "the network is not there" or "the server said no",
+and they deserve different treatment.
+
+A network failure queues the write in an **outbox** and shows the change
+anyway, marked as waiting. The queue drains oldest-first when the app comes
+back to the foreground or a refresh runs, and it stops at the first network
+failure so a later edit can never overtake an earlier one. A refresh always
+flushes before it fetches, or the server's older copy would overwrite the edit
+still sitting in the queue.
+
+A server *rejection* will never succeed, so it is reported immediately rather
+than retried forever.
 
 Recipes are soft-deleted. A tombstone is what lets a delete on one phone reach
-the rest of the family, instead of the recipe reappearing at the next sync.
+the rest of the family instead of the recipe reappearing at the next refresh.
 
-Conflicts resolve last-write-wins on `updated_at`. Two people rarely edit the
-same recipe in the same minute, and the cost of being wrong is one edit to redo.
+## Signing in comes first
 
-## Signing in is optional, and late
+A cookbook belongs to an account, and row-level security checks that account on
+every read, so there is no signed-out mode: `AuthGate` in `app/_layout.tsx`
+sends anyone without a session to the sign-in screen, including on a deep link.
 
-Most apps put a login wall first. This one does not: you can install it, add
-recipes, cook from them and search them without ever seeing an account screen.
-
-That has one consequence worth designing for. Recipes created while signed out
-are real recipes, not a throwaway demo, so they must survive the first sign-in.
-`library.claimLocalDataFor(userId)` runs on every sign-in and hands every
-unowned cookbook — and the recipes in it — to the new account, so they sync up
-rather than being stranded on the device by a server that requires an owner. It
-only touches *unowned* rows, so signing in on a shared device cannot take over
-someone else's data, and it is idempotent.
+That also means no local seed data. A brand-new cookbook is empty, which is
+honest — these are meant to be *your family's* recipes, and pre-filling a real
+shared cookbook with invented ones attributed to a fictional grandmother would
+only be something to delete.
 
 ## Native sign-in, not a browser redirect
 
@@ -163,18 +194,35 @@ Staples — salt, flour, oil, water and friends — are assumed on hand, because
 
 ## Testing
 
-108 unit tests over the parts where correctness is not obvious: quantity
+117 unit tests over the parts where correctness is not obvious: quantity
 parsing, unit normalisation, ingredient line parsing, fraction formatting,
-duration extraction, schema.org extraction, name matching, search ranking, and
-the repository's persistence, notification and sign-in-claiming behaviour.
+duration extraction, schema.org extraction, name matching and search ranking.
+
+The repository is tested against a stand-in server rather than Supabase,
+because what matters is the contract: the row the server returns is what gets
+kept, an optimistic value appears before the server answers, a write that
+cannot reach the server is queued rather than lost, the queue goes out in
+order, a flush happens before a refresh, a refusal is surfaced instead of
+retried, and one account never sees another's cache.
 
 They run in Node, not a simulator, because `src/domain` and `src/import` import
 no React Native. A stub stands in for `react-native` where `Platform` is
 touched (`test/reactNativeStub.ts`).
 
-The database has its own tests (`supabase/tests/`): the row-level security rules
-are exercised as three different users, because a too-permissive policy looks
-exactly like a correct one until someone reads another family's recipes.
+The database has its own tests (`supabase/tests/run.sh`). The row-level
+security rules are exercised as three different users, because a
+too-permissive policy looks exactly like a correct one until someone reads
+another family's recipes — and the server-side RPCs are tested for the races
+they exist to prevent.
+
+One of those tests exists because of a bug that would have broken the app
+outright. `RETURNING` makes Postgres apply the *select* policy to the row just
+inserted, and membership is added by an AFTER trigger — so a `cookbooks_select`
+policy that only checked membership rejected the owner reading back the
+cookbook they had just created. PostgREST always inserts with RETURNING, so
+creating a cookbook would have failed with an incomprehensible error. The
+policy now checks `owner_id` directly as well, and a test inserts with
+RETURNING to keep it that way.
 
 The UI is verified by building and driving it — `npm run export:web` plus a
 browser — rather than by snapshot tests that assert a component still renders

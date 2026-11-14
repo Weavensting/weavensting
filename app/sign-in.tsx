@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import {
@@ -8,22 +7,18 @@ import {
   signInWithGoogleOnWeb,
 } from '../src/auth/providers';
 import { useAuth } from '../src/state/useAuth';
-import { useLibrary } from '../src/state/useLibrary';
-import { Body, Button, Card, Heading, Loading, Notice, Screen } from '../src/ui/components';
-import { radius, spacing, useTheme } from '../src/ui/theme';
+import { Body, Card, Heading, Loading, Notice, Screen, Button } from '../src/ui/components';
+import { radius, spacing, typography, useTheme } from '../src/ui/theme';
 
 /**
- * Sign-in is optional and the screen says so.
+ * The way in.
  *
- * The cookbook already works on this device. An account adds two things:
- * syncing with the family, and the import paths that need a server. Anything
- * already saved comes along — `claimLocalDataFor` hands it to the new account.
+ * Recipes belong to a cookbook and a cookbook belongs to an account, so this
+ * comes before anything else rather than being an optional extra.
  */
 export default function SignInScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { status, error } = useAuth();
-  const { recipes } = useLibrary();
 
   const [busy, setBusy] = useState<'google' | 'apple' | undefined>();
   const [message, setMessage] = useState<string>();
@@ -32,11 +27,6 @@ export default function SignInScreen() {
   useEffect(() => {
     void isAppleAvailable().then(setAppleReady);
   }, []);
-
-  useEffect(() => {
-    // Leave as soon as the session lands, however it arrived.
-    if (status === 'signed-in') router.back();
-  }, [status, router]);
 
   const run = async (provider: 'google' | 'apple') => {
     setMessage(undefined);
@@ -59,29 +49,30 @@ export default function SignInScreen() {
   if (status === 'unavailable') {
     return (
       <Screen>
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
-          <Heading level={1}>Accounts are not set up</Heading>
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingTop: spacing.xxl }}>
+          <Heading level={1}>Not set up yet</Heading>
           <Notice tone="warning" title="Needs a Supabase project">
-            Family sharing and photo import run through your own backend. Add the Supabase URL and
-            anon key to .env, then restart — see docs/setup.md. Everything else works without it.
+            The cookbook lives on your own backend, so it needs one before anyone can sign in. Add
+            the Supabase URL and anon key to .env and restart — docs/setup.md walks through it.
           </Notice>
-          <Button label="Back to the cookbook" variant="secondary" onPress={() => router.back()} />
         </ScrollView>
       </Screen>
     );
   }
 
-  const localCount = recipes.filter((r) => !r.deletedAt).length;
   const googleReady = isGoogleAvailable() || Platform.OS === 'web';
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl }}>
-        <View style={{ gap: spacing.sm, paddingTop: spacing.lg }}>
-          <Heading level={1}>Share the cookbook</Heading>
-          <Body muted>
-            Signing in syncs your recipes across everyone's phones and turns on reading recipes from
-            photos, dictation and videos.
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.xl, flexGrow: 1, justifyContent: 'center' }}
+      >
+        <View style={{ gap: spacing.sm, alignItems: 'center' }}>
+          <Heading level={1} style={{ fontSize: 34, fontFamily: typography.display, textAlign: 'center' }}>
+            Family Cookbook
+          </Heading>
+          <Body muted style={{ textAlign: 'center' }}>
+            Everything the family cooks, on everyone's phone.
           </Body>
         </View>
 
@@ -130,15 +121,12 @@ export default function SignInScreen() {
         </View>
 
         <Card style={{ gap: spacing.sm, backgroundColor: theme.surfaceMuted }}>
-          <Heading level={3}>Nothing is lost</Heading>
+          <Heading level={3}>Why an account</Heading>
           <Body muted>
-            {localCount > 0
-              ? `The ${localCount} ${localCount === 1 ? 'recipe' : 'recipes'} already on this device become yours and sync up on your first sync.`
-              : 'Recipes you add before signing in become yours automatically.'}
+            A cookbook is shared, so it has to belong to someone. Signing in is what lets your
+            recipes reach the rest of the family's phones — and what keeps everyone else's out.
           </Body>
         </Card>
-
-        <Button label="Not now" variant="ghost" onPress={() => router.back()} />
       </ScrollView>
     </Screen>
   );

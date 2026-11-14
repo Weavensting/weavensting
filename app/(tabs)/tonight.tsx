@@ -48,7 +48,7 @@ export default function TonightScreen() {
     [recipes, pantry, tolerance, maxMinutes, maxCalories, minProtein],
   );
 
-  if (status === 'loading') return <Loading />;
+  if (status === 'loading' || status === 'idle') return <Loading />;
 
   const stocked = pantry.filter((item) => !item.deletedAt).length;
 

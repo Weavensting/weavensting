@@ -8,16 +8,18 @@ need in order to work properly.
 - Expo app for iOS, Android and web; all three bundles verified, web export
   driven in a browser.
 - Recipe model with ingredient parsing, units, kitchen-fraction scaling.
-- Local-first storage (SQLite on device, IndexedDB on web) with soft deletes.
+- Supabase as the single source of truth, with a device cache so the app opens
+  instantly and a recipe stays readable offline, an outbox for offline writes,
+  and realtime updates between phones.
 - Import from links via schema.org markup — no model call, no cost.
 - Import from photos, dictation and pasted text via Claude, behind a review screen.
-- **Sign in with Google and Apple**, native account pickers, with recipes made
-  while signed out claimed by the new account.
+- **Sign in with Google and Apple**, native account pickers, gating the app.
 - Cook mode: one step at a time, timers from step text, screen kept awake.
 - Search over titles, ingredients, tags and attribution.
 - Pantry, "what can I make tonight", and macro/time filters.
-- Postgres schema with row-level security, invite codes, and a photo bucket,
-  with a 17-check RLS test suite.
+- Postgres schema with row-level security, invite codes, a photo bucket, and
+  server-side RPCs for the things two devices can race on; tested as three
+  users against a real Postgres.
 - Edge Functions holding the API key, with quotas and SSRF protection.
 
 ## Next
@@ -27,9 +29,10 @@ roles and policies are tested. What is missing is a cookbook switcher and a
 share sheet that produces an invite link. Until then, family sharing is
 reachable only from a SQL console. This is the single biggest gap.
 
-**Background sync.** `src/data/sync.ts` pushes and pulls correctly but only when
-Settings → Sync now is tapped. It should run on app foreground, after a write
-settles, and on a reconnect.
+**A reconnect listener.** Writes flush when the app comes back to the
+foreground and when realtime resubscribes, which covers most cases. A real
+network-state listener (`@react-native-community/netinfo`) would catch the rest
+— signal returning while the app is already open.
 
 **Photo storage.** Recipe photos are currently local file URIs, which means they
 do not travel between phones. The `recipe-photos` bucket and its policies exist

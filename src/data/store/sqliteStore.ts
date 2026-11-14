@@ -21,26 +21,23 @@ export async function createSQLiteStore(): Promise<DocumentStore> {
       id         TEXT NOT NULL,
       json       TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      dirty      INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (collection, id)
     );
-    CREATE INDEX IF NOT EXISTS documents_dirty ON documents (dirty);
     CREATE TABLE IF NOT EXISTS meta (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
   `);
 
-  const UPSERT = `INSERT INTO documents (collection, id, json, updated_at, dirty) VALUES (?, ?, ?, ?, ?)
+  const UPSERT = `INSERT INTO documents (collection, id, json, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT (collection, id) DO UPDATE SET json = excluded.json,
-       updated_at = excluded.updated_at, dirty = excluded.dirty`;
+       updated_at = excluded.updated_at`;
 
   const toStored = (row: DocumentRow): StoredDocument => ({
     id: row.id,
     collection: row.collection as Collection,
     doc: JSON.parse(row.json),
     updatedAt: row.updated_at,
-    dirty: row.dirty === 1,
   });
 
   return {
@@ -53,17 +50,17 @@ export async function createSQLiteStore(): Promise<DocumentStore> {
       return rows.map(toStored);
     },
 
-    async write(collection, id, doc, dirty = true) {
-      await db.runAsync(UPSERT, collection, id, JSON.stringify(doc), new Date().toISOString(), dirty ? 1 : 0);
+    async write(collection, id, doc) {
+      await db.runAsync(UPSERT, collection, id, JSON.stringify(doc), new Date().toISOString());
     },
 
-    async writeMany(collection, entries, dirty = true) {
+    async writeMany(collection, entries) {
       if (entries.length === 0) return;
-      // One transaction: a partially-applied sync batch would be worse than none.
+      // One transaction: a half-written cache is worse than a stale one.
       await db.withTransactionAsync(async () => {
         const stamp = new Date().toISOString();
         for (const entry of entries) {
-          await db.runAsync(UPSERT, collection, entry.id, JSON.stringify(entry.doc), stamp, dirty ? 1 : 0);
+          await db.runAsync(UPSERT, collection, entry.id, JSON.stringify(entry.doc), stamp);
         }
       });
     },
@@ -72,18 +69,8 @@ export async function createSQLiteStore(): Promise<DocumentStore> {
       await db.runAsync('DELETE FROM documents WHERE collection = ? AND id = ?', collection, id);
     },
 
-    async readDirty() {
-      const rows = await db.getAllAsync<DocumentRow>('SELECT * FROM documents WHERE dirty = 1');
-      return rows.map(toStored);
-    },
-
-    async markSynced(collection, ids) {
-      if (ids.length === 0) return;
-      const placeholders = ids.map(() => '?').join(', ');
-      await db.runAsync(
-        `UPDATE documents SET dirty = 0 WHERE collection = ? AND id IN (${placeholders})`,
-        collection, ...ids,
-      );
+    async clearCollection(collection) {
+      await db.runAsync('DELETE FROM documents WHERE collection = ?', collection);
     },
 
     async getMeta(key) {
@@ -110,5 +97,4 @@ interface DocumentRow {
   id: string;
   json: string;
   updated_at: string;
-  dirty: number;
 }

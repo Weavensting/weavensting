@@ -1,14 +1,15 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { getSupabase } from '../data/supabase';
 import { isCloudConfigured } from '../config';
-import { library } from '../data/repository';
+import { beginSession, endSession } from '../data/session';
 
 /**
- * Who is signed in, if anyone.
+ * Who is signed in.
  *
- * Signing in is optional by design: the cookbook works fully on the device
- * without an account. An account adds two things — syncing with the family, and
- * the AI-assisted import paths that run on the server.
+ * The cookbook is a shared database, so there is no signed-out mode: an account
+ * is what a cookbook belongs to, and what row-level security checks on every
+ * read. The session drives the data layer — signing in starts it, signing out
+ * clears the cache, because the cache is the server's data and not the device's.
  */
 
 export interface AuthState {
@@ -48,26 +49,25 @@ class AuthStore {
       return;
     }
 
-    void supabase.auth.getSession().then(({ data }) => {
-      this.applySession(data.session ?? undefined);
-    });
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      this.applySession(session ?? undefined);
-    });
+    void supabase.auth.getSession().then(({ data }) => this.applySession(data.session ?? undefined));
+    supabase.auth.onAuthStateChange((_event, session) => this.applySession(session ?? undefined));
   };
 
   private applySession(session: Session | undefined): void {
+    const previous = this.state.user?.id;
+
     if (session?.user) {
       this.publish({ status: 'signed-in', session, user: session.user });
-      // Recipes added before signing in are real recipes, not a demo — hand
-      // them to the new account so they sync rather than being stranded.
-      void library.claimLocalDataFor(session.user.id).catch((error) => {
-        console.warn('[auth] could not claim local data', error);
-      });
+      if (previous !== session.user.id) {
+        void beginSession(session.user.id).catch((error) => {
+          console.warn('[auth] could not open the cookbook', error);
+        });
+      }
       return;
     }
+
     this.publish({ status: 'signed-out' });
+    if (previous) void endSession().catch(() => {});
   }
 
   setError = (error: string | undefined): void => {

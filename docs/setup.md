@@ -1,16 +1,10 @@
 # Setting up the backend and sign-in
 
-The app works without any of this. Link import, manual entry, cooking, scaling,
-search and the pantry all run on the device with no account and no server.
+The cookbook is a shared database, so the backend is not optional — recipes
+live on the server and a cookbook belongs to an account. Nothing works until
+this is done, including signing in.
 
-You need a backend for three things:
-
-1. **Signing in** — so a cookbook has an owner.
-2. **Family sharing** — recipes syncing between everyone's phones.
-3. **AI import** — reading photos of handwritten cards, dictated recipes, and
-   pages with no structured markup.
-
-All three are the same Supabase project. The free tier is plenty for a family.
+It is one Supabase project, and the free tier is plenty for a family.
 
 ---
 
@@ -25,6 +19,9 @@ cp .env.example .env
 
 Fill in `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, then
 restart the dev server — these are inlined at build time, not read at runtime.
+(Metro substitutes a *static* `process.env.EXPO_PUBLIC_NAME`; a computed lookup
+reads undefined in a release build, which looks exactly like "not configured".
+`src/config.ts` spells each one out for that reason.)
 
 The anon key is safe in the app bundle. Row-level security, not key secrecy, is
 what protects the data. **Never put your Claude API key in `.env`** — anything
@@ -39,7 +36,15 @@ supabase db push
 ```
 
 This creates the tables, the row-level security policies, the recipe photo
-bucket, and the invite-code flow for adding family members.
+bucket, the invite-code flow for adding family members, and the server-side
+functions that decide the things two devices can race on (one pantry row per
+food, one cookbook per person).
+
+To check the schema before you trust it with anything:
+
+```bash
+supabase/tests/run.sh "$(supabase status -o env | grep DB_URL | cut -d= -f2-)"
+```
 
 ## 3. Deploy the Edge Functions
 

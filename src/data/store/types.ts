@@ -1,6 +1,10 @@
 /**
- * Persistence is deliberately dumb: it stores opaque JSON documents keyed by
- * collection and id, and nothing else.
+ * Local persistence: opaque JSON documents keyed by collection and id.
+ *
+ * This is a **cache**, not a second source of truth. Supabase holds the real
+ * data; this exists so the app opens instantly and a recipe stays readable in a
+ * kitchen with no signal. The one exception is `outbox`, which holds writes
+ * made while offline until they can reach the server.
  *
  * All querying, searching and matching happens in memory over the full set (see
  * `src/data/repository.ts`). A family cookbook is thousands of recipes at most,
@@ -8,9 +12,10 @@
  * Android and web — instead of one per storage engine.
  */
 
-export type Collection = 'recipes' | 'cookbooks' | 'pantry';
+export type Collection = 'recipes' | 'cookbooks' | 'pantry' | 'outbox';
 
-export const COLLECTIONS: Collection[] = ['recipes', 'cookbooks', 'pantry'];
+/** The collections mirrored from the server, in dependency order. */
+export const CACHED_COLLECTIONS = ['cookbooks', 'recipes', 'pantry'] as const;
 
 export interface StoredDocument {
   id: string;
@@ -18,25 +23,21 @@ export interface StoredDocument {
   /** The document itself, already JSON-parsed. */
   doc: unknown;
   updatedAt: string;
-  /** Written locally and not yet pushed to the server. */
-  dirty: boolean;
 }
 
 export interface DocumentStore {
   /** Create tables/objects. Safe to call repeatedly. */
   init(): Promise<void>;
   readAll(collection: Collection): Promise<StoredDocument[]>;
-  /** Insert or replace. `dirty` defaults to true — local edits need syncing. */
-  write(collection: Collection, id: string, doc: unknown, dirty?: boolean): Promise<void>;
-  writeMany(collection: Collection, entries: { id: string; doc: unknown }[], dirty?: boolean): Promise<void>;
-  /** Hard delete. Soft deletes are ordinary writes with `deletedAt` set. */
+  write(collection: Collection, id: string, doc: unknown): Promise<void>;
+  writeMany(collection: Collection, entries: { id: string; doc: unknown }[]): Promise<void>;
+  /** Remove a cached row outright. Soft deletes arrive as ordinary writes. */
   hardDelete(collection: Collection, id: string): Promise<void>;
-  /** Documents waiting to be pushed to the server. */
-  readDirty(): Promise<StoredDocument[]>;
-  markSynced(collection: Collection, ids: string[]): Promise<void>;
+  /** Drop every document in one collection, keeping the others. */
+  clearCollection(collection: Collection): Promise<void>;
   /** Small key/value slots for sync cursors and the like. */
   getMeta(key: string): Promise<string | undefined>;
   setMeta(key: string, value: string): Promise<void>;
-  /** Wipe everything. Used by sign-out and by tests. */
+  /** Wipe everything. The cache belongs to a session, so sign-out clears it. */
   clear(): Promise<void>;
 }

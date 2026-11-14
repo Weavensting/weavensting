@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 import type { Recipe } from '../../domain/types';
 import { formatMinutes, totalMinutes } from '../../domain/recipe';
@@ -7,12 +8,14 @@ import { radius, spacing, typography, useTheme } from '../theme';
 import { Body, Card, Chip } from './index';
 
 export function RecipeCard({
-  recipe, onPress, footer,
+  recipe, onPress, footer, pending,
 }: {
   recipe: Recipe;
   onPress: () => void;
   /** Extra line under the title — pantry coverage, last cooked, and so on. */
   footer?: ReactNode;
+  /** Saved on this device but not yet confirmed by the server. */
+  pending?: boolean;
 }) {
   const theme = useTheme();
   const time = formatMinutes(totalMinutes(recipe));
@@ -57,6 +60,13 @@ export function RecipeCard({
           {footer}
         </View>
       </View>
+
+      {pending ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.sm }}>
+          <Ionicons name="cloud-upload-outline" size={14} color={theme.warning} />
+          <Body style={{ fontSize: 12, color: theme.warning }}>Waiting to sync</Body>
+        </View>
+      ) : null}
 
       {recipe.tags.length > 0 ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm }}>

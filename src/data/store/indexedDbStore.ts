@@ -11,7 +11,6 @@ interface DocumentRecord {
   id: string;
   doc: unknown;
   updatedAt: string;
-  dirty: number;
 }
 
 /**
@@ -53,7 +52,6 @@ export async function createIndexedDbStore(): Promise<DocumentStore> {
     collection: record.collection,
     doc: record.doc,
     updatedAt: record.updatedAt,
-    dirty: record.dirty === 1,
   });
 
   return {
@@ -66,26 +64,25 @@ export async function createIndexedDbStore(): Promise<DocumentStore> {
       return records.map(toStored);
     },
 
-    async write(collection, id, doc, dirty = true) {
+    async write(collection, id, doc) {
       await run(DOCS, 'readwrite', (tx) =>
         request(
           tx.objectStore(DOCS).put({
             key: key(collection, id), collection, id, doc,
-            updatedAt: new Date().toISOString(), dirty: dirty ? 1 : 0,
+            updatedAt: new Date().toISOString(),
           } satisfies DocumentRecord),
         ),
       );
     },
 
-    async writeMany(collection, entries, dirty = true) {
+    async writeMany(collection, entries) {
       if (entries.length === 0) return;
       await run(DOCS, 'readwrite', (tx) => {
         const store = tx.objectStore(DOCS);
         const updatedAt = new Date().toISOString();
         for (const entry of entries) {
           store.put({
-            key: key(collection, entry.id), collection, id: entry.id, doc: entry.doc,
-            updatedAt, dirty: dirty ? 1 : 0,
+            key: key(collection, entry.id), collection, id: entry.id, doc: entry.doc, updatedAt,
           } satisfies DocumentRecord);
         }
       });
@@ -95,21 +92,11 @@ export async function createIndexedDbStore(): Promise<DocumentStore> {
       await run(DOCS, 'readwrite', (tx) => request(tx.objectStore(DOCS).delete(key(collection, id))));
     },
 
-    async readDirty() {
-      const records = await run(DOCS, 'readonly', (tx) =>
-        request<DocumentRecord[]>(tx.objectStore(DOCS).index('dirty').getAll(1)),
-      );
-      return records.map(toStored);
-    },
-
-    async markSynced(collection, ids) {
-      if (ids.length === 0) return;
+    async clearCollection(collection) {
       await run(DOCS, 'readwrite', async (tx) => {
-        const store = tx.objectStore(DOCS);
-        for (const id of ids) {
-          const record = await request<DocumentRecord | undefined>(store.get(key(collection, id)));
-          if (record) store.put({ ...record, dirty: 0 });
-        }
+        const index = tx.objectStore(DOCS).index('collection');
+        const keys = await request<IDBValidKey[]>(index.getAllKeys(collection));
+        for (const k of keys) tx.objectStore(DOCS).delete(k);
       });
     },
 
@@ -141,7 +128,6 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(DOCS)) {
         const store = db.createObjectStore(DOCS, { keyPath: 'key' });
         store.createIndex('collection', 'collection');
-        store.createIndex('dirty', 'dirty');
       }
       if (!db.objectStoreNames.contains(META)) {
         db.createObjectStore(META, { keyPath: 'key' });

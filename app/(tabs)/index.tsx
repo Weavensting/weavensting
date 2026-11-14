@@ -19,7 +19,7 @@ const SORTS: { value: Sort; label: string }[] = [
 export default function CookbookScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { status, recipes, error } = useLibrary();
+  const { status, recipes, error, pendingIds } = useLibrary();
 
   const [query, setQuery] = useState('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -34,7 +34,7 @@ export default function CookbookScreen() {
   const toggleTag = (tag: string) =>
     setActiveTags((current) => (current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]));
 
-  if (status === 'loading') return <Loading message="Opening your cookbook" />;
+  if (status === 'loading' || status === 'idle') return <Loading message="Opening your cookbook" />;
 
   return (
     <Screen>
@@ -81,13 +81,20 @@ export default function CookbookScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <RecipeCard recipe={item.recipe} onPress={() => router.push(`/recipe/${item.recipe.id}`)} />
+          <RecipeCard
+            recipe={item.recipe}
+            onPress={() => router.push(`/recipe/${item.recipe.id}`)}
+            pending={pendingIds.includes(item.recipe.id)}
+          />
         )}
         ListEmptyComponent={
           recipes.filter((r) => !r.deletedAt).length === 0 ? (
             <EmptyState
-              title="Your cookbook is empty"
-              message="Add the first recipe from a link, a photo of a handwritten card, or by dictating it."
+              title="Nothing in the cookbook yet"
+              message={
+                'Add the first recipe from a link, a photo of a handwritten card, or by dictating it. ' +
+                'Everyone you share the cookbook with will see it.'
+              }
               action={<Button label="Add a recipe" onPress={() => router.push('/import')} />}
             />
           ) : (

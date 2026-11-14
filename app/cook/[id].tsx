@@ -29,7 +29,7 @@ export default function CookScreen() {
   const recipe = useMemo(() => recipes.find((r) => r.id === id), [recipes, id]);
   const [index, setIndex] = useState(0);
 
-  if (status === 'loading') return <Loading />;
+  if (status === 'loading' || status === 'idle') return <Loading />;
   if (!recipe) {
     router.replace('/');
     return null;

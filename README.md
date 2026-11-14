@@ -26,10 +26,8 @@ it over, and the words you (or your grandmother) wrote are kept as written.
 **Signing in**
 - **Sign in with Google** and **Sign in with Apple**, both using the native
   account picker rather than a browser bounce.
-- Entirely optional. The cookbook works on the device with no account; signing
-  in adds syncing with the family and the import paths that need a server.
-- Recipes added before signing in become yours automatically — nothing is
-  stranded.
+- Required: a cookbook is shared, so it belongs to an account, and that is what
+  decides who can read it.
 
 **Cooking from them**
 - Ingredients scale to any number of servings, in kitchen fractions — `1 1/2 cups`,
@@ -45,9 +43,13 @@ it over, and the words you (or your grandmother) wrote are kept as written.
   much you are willing to shop for.
 - Filter by time, calories and macros.
 
-**Everywhere, offline**
-- Everything is stored on the device and works with no signal.
-- Connect a Supabase project and it syncs across the family's phones.
+**One cookbook, every phone**
+- The recipes live in one shared database, so an edit on one phone is the same
+  edit everywhere, and changes arrive live.
+- Each device keeps a copy, so the app opens instantly and a recipe stays
+  readable with no signal.
+- Anything changed offline is queued and goes up when you reconnect, with the
+  screen saying so until it does.
 
 ## Running it
 
@@ -56,16 +58,13 @@ npm install
 npm start          # then press i, a, or w
 ```
 
-That is enough for link import, manual entry, cooking and search — all local, no
-account, no server.
-
-Sign-in, syncing, and photo/dictation import need a backend; see
-[docs/setup.md](docs/setup.md) (about twenty minutes, free tier). Native Google
-sign-in also needs a development build rather than Expo Go — that is covered
-there too.
+The cookbook is a shared database, so it needs a backend before anyone can sign
+in. [docs/setup.md](docs/setup.md) walks through it — about twenty minutes on
+the free tier. Native Google sign-in also needs a development build rather than
+Expo Go, which is covered there too.
 
 ```bash
-npm test           # 108 unit tests over the parsing, matching and search logic
+npm test           # 117 unit tests over the domain logic and the data layer
 npm run typecheck
 npm run export:web # static web build in dist/
 ```
@@ -75,7 +74,7 @@ npm run export:web # static web build in dist/
 | Layer | Where | What it does |
 |---|---|---|
 | Domain | `src/domain` | Recipes, ingredient parsing, units, scaling, pantry matching, search. Pure TypeScript, no React, fully tested. |
-| Data | `src/data` | Local-first store: SQLite on device, IndexedDB on web, one in-memory index over both. |
+| Data | `src/data` | Supabase as the source of truth, with a device cache (SQLite / IndexedDB), an outbox for offline writes, and realtime updates. |
 | Auth | `src/auth` | Native Google and Apple sign-in, exchanged for a Supabase session. |
 | Import | `src/import` | Source detection, the free schema.org path, and the client for AI extraction. |
 | UI | `app`, `src/ui` | Expo Router screens and a small component set. |

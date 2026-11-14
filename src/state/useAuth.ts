@@ -1,4 +1,5 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 import { authStore, type AuthState } from '../auth/store';
 
 /** Subscribe a component to who is signed in. */

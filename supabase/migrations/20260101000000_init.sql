@@ -209,8 +209,15 @@ alter table recipes          enable row level security;
 alter table pantry_items     enable row level security;
 
 -- Cookbooks: members read; owners change.
+--
+-- The owner is checked directly as well as through membership. Membership is
+-- added by an AFTER INSERT trigger, so at the moment an INSERT ... RETURNING
+-- evaluates the select policy the member row does not exist yet -- and
+-- PostgREST always uses RETURNING, so without this the owner could not read
+-- back the cookbook they had just created. It also means an owner keeps access
+-- if their membership row is ever removed.
 create policy cookbooks_select on cookbooks
-  for select using (is_cookbook_member(id));
+  for select using (owner_id = auth.uid() or is_cookbook_member(id));
 create policy cookbooks_insert on cookbooks
   for insert with check (owner_id = auth.uid());
 create policy cookbooks_update on cookbooks

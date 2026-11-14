@@ -5,7 +5,6 @@ import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { setPendingDraft } from '../../src/state/draftStore';
-import { useAuth } from '../../src/state/useAuth';
 import { importFromPhotos, importFromText, importFromUrl } from '../../src/import/importRecipe';
 import { isExtractionConfigured, type ImageInput } from '../../src/import/extractClient';
 import type { RecipeDraft } from '../../src/domain/types';
@@ -23,17 +22,13 @@ type Mode = 'link' | 'photo' | 'dictate' | 'type';
 export default function ImportScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { status } = useAuth();
-
   const [mode, setMode] = useState<Mode>('link');
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string>();
 
-  // The AI paths run on the server and need a signed-in user; link import and
-  // manual entry work with no account at all.
-  const aiReady = isExtractionConfigured() && status === 'signed-in';
+  const aiReady = isExtractionConfigured();
 
   const run = async (work: () => Promise<RecipeDraft>, message: string) => {
     setError(undefined);
@@ -141,7 +136,7 @@ export default function ImportScreen() {
               A handwritten recipe card, a page from a cookbook, or a screenshot. Add several photos
               if the recipe runs over more than one.
             </Body>
-            {!aiReady ? <SetupNotice status={status} /> : null}
+            {!aiReady ? <SetupNotice /> : null}
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               {Platform.OS !== 'web' ? (
                 <Button label="Take photo" onPress={() => void pickPhotos('camera')} disabled={!aiReady} style={{ flex: 1 }} />
@@ -165,7 +160,7 @@ export default function ImportScreen() {
               Ramble freely; it gets sorted out for you. Great for recording a recipe over the phone
               with a relative.
             </Body>
-            {!aiReady ? <SetupNotice status={status} /> : null}
+            {!aiReady ? <SetupNotice /> : null}
             <Field
               value={text}
               onChangeText={setText}
@@ -187,7 +182,7 @@ export default function ImportScreen() {
             <Body muted>
               Paste a recipe from a message or an email, or type it out. A rough list is fine.
             </Body>
-            {!aiReady ? <SetupNotice status={status} /> : null}
+            {!aiReady ? <SetupNotice /> : null}
             <Field value={text} onChangeText={setText} placeholder="Paste the recipe here" multiline minHeight={200} />
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <Button
@@ -216,21 +211,7 @@ export default function ImportScreen() {
   );
 }
 
-function SetupNotice({ status }: { status: string }) {
-  const router = useRouter();
-
-  if (status === 'signed-out') {
-    return (
-      <View style={{ gap: spacing.sm }}>
-        <Notice tone="warning" title="Sign in to use this">
-          Reading photos and dictation runs on your own server, which needs an account. Link import
-          and entering recipes by hand work without one.
-        </Notice>
-        <Button label="Sign in" variant="secondary" onPress={() => router.push('/sign-in')} />
-      </View>
-    );
-  }
-
+function SetupNotice() {
   return (
     <Notice tone="warning" title="Needs setting up">
       Reading photos and dictation runs through your own server. Connect a Supabase project (see

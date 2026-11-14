@@ -17,28 +17,23 @@ export function createMemoryStore(): DocumentStore {
       return [...data.values()].filter((d) => d.collection === collection);
     },
 
-    async write(collection, id, doc, dirty = true) {
+    async write(collection, id, doc) {
       data.set(key(collection, id), {
-        id, collection, doc, updatedAt: new Date().toISOString(), dirty,
+        id, collection, doc, updatedAt: new Date().toISOString(),
       });
     },
 
-    async writeMany(collection, entries, dirty = true) {
-      for (const entry of entries) await this.write(collection, entry.id, entry.doc, dirty);
+    async writeMany(collection, entries) {
+      for (const entry of entries) await this.write(collection, entry.id, entry.doc);
     },
 
     async hardDelete(collection, id) {
       data.delete(key(collection, id));
     },
 
-    async readDirty() {
-      return [...data.values()].filter((d) => d.dirty);
-    },
-
-    async markSynced(collection, ids) {
-      for (const id of ids) {
-        const existing = data.get(key(collection, id));
-        if (existing) existing.dirty = false;
+    async clearCollection(collection) {
+      for (const [k, value] of [...data.entries()]) {
+        if (value.collection === collection) data.delete(k);
       }
     },
 
