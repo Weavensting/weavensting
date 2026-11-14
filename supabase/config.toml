@@ -1,0 +1,14 @@
+project_id = "family-cookbook"
+
+# verify_jwt is off because these functions do their own check in
+# _shared/auth.ts: they require a real signed-in user (not merely the anon key,
+# which ships inside the app) and charge each call against a daily quota.
+
+[functions.extract-recipe]
+verify_jwt = false
+
+[functions.fetch-page]
+verify_jwt = false
+
+[functions.estimate-nutrition]
+verify_jwt = false
