@@ -1,4 +1,4 @@
-# Setting up the backend and sign-in
+# Setting up
 
 The cookbook is a shared database, so the backend is not optional — recipes
 live on the server and a cookbook belongs to an account. Nothing works until
@@ -8,7 +8,79 @@ It is one Supabase project, and the free tier is plenty for a family.
 
 ---
 
-## 1. Create the Supabase project
+## The short version, for iOS with Sign in with Apple
+
+If you have an Apple Developer account and only care about your own iPhone for
+now, this is the whole path. It skips Google entirely — no Google Cloud
+project, no client IDs, and none of the SHA-1 fingerprint business.
+
+**1. Sign up at [supabase.com](https://supabase.com)** (free, no card), create a
+project, and copy the Project URL and anon public key from Settings → API.
+
+**2. Fill in `.env`:**
+
+```bash
+cp .env.example .env
+```
+
+```
+EXPO_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+BUNDLE_ID=com.yourname.familycookbook
+```
+
+> Pick your own `BUNDLE_ID`. Bundle identifiers are unique across Apple's whole
+> developer programme, so `com.familycookbook.app` is very likely taken — and
+> changing it after the first build means registering a new App ID and redoing
+> the Apple setup.
+
+**3. Run the setup script:**
+
+```bash
+npm install -g supabase
+scripts/setup.sh
+```
+
+It links the project, applies the migrations, deploys the Edge Functions, and
+tells you what is still missing. Safe to run as many times as you like.
+
+**4. Two things it cannot do for you**, because neither has an API:
+
+- **Apple Developer** → Certificates, IDs & Profiles → your App ID → tick
+  **Sign in with Apple**.
+- **Supabase** → Authentication → Providers → **Apple** → enable it, and put
+  your bundle ID in **Authorized Client IDs**.
+
+  That is all native iOS sign-in needs. The Services ID, team ID and `.p8` key
+  you will see in Apple's docs are for the *web* sign-in flow only.
+
+**5. Build it onto your phone:**
+
+```bash
+npx expo run:ios                          # on a Mac with Xcode
+eas build -p ios --profile development    # or in the cloud, from any machine
+```
+
+Expo Go will not do: Sign in with Apple is a native capability, so it has to be
+a real build.
+
+**Optional, for reading handwritten recipe cards:**
+
+```bash
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Everything else — link import, typing recipes in, cooking, search, the pantry —
+works without it.
+
+---
+
+The rest of this page is the full reference, including Google sign-in and
+Android.
+
+# Full reference
+
+## The Supabase project
 
 Sign up at [supabase.com](https://supabase.com), create a project, and note the
 **Project URL** and **anon public key** from Settings → API.
@@ -27,7 +99,9 @@ The anon key is safe in the app bundle. Row-level security, not key secrecy, is
 what protects the data. **Never put your Claude API key in `.env`** — anything
 with an `EXPO_PUBLIC_` prefix ends up readable inside the shipped app.
 
-## 2. Run the migrations
+## The migrations
+
+`scripts/setup.sh` does this for you. By hand:
 
 ```bash
 npm install -g supabase
@@ -46,7 +120,7 @@ To check the schema before you trust it with anything:
 supabase/tests/run.sh "$(supabase status -o env | grep DB_URL | cut -d= -f2-)"
 ```
 
-## 3. Deploy the Edge Functions
+## The Edge Functions
 
 ```bash
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
@@ -58,9 +132,9 @@ function calls Claude.
 
 ---
 
-## 4. Sign in with Google
+## Sign in with Google (optional)
 
-### 4a. Google Cloud console
+### Google Cloud console
 
 Create a project, configure the OAuth consent screen, then create **three**
 OAuth client IDs under Credentials:
@@ -75,7 +149,7 @@ The web client ID doing double duty is the part that catches people out. On
 native you are not doing a web flow — but the token Google mints still carries
 the web client ID as its audience, and that is what Supabase checks.
 
-### 4b. Supabase dashboard
+### Supabase dashboard
 
 Authentication → Sign In / Providers → Google:
 
@@ -84,7 +158,7 @@ Authentication → Sign In / Providers → Google:
 - Add the **iOS and Android** client IDs to **Authorized Client IDs** (comma
   separated), so tokens minted for those audiences are accepted too.
 
-### 4c. The app
+### The app
 
 In `.env`:
 
@@ -93,11 +167,11 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...apps.googleusercontent.com
 ```
 
-In `app.json`, set the `@react-native-google-signin/google-signin` plugin's
-`iosUrlScheme` to your iOS client ID **reversed** — the scheme looks like
-`com.googleusercontent.apps.000000000000-yyyy`.
+That is all. `app.config.ts` derives the reversed URL scheme Google needs from
+the iOS client ID, and only includes the Google plugin at all when these are
+set — so an Apple-only build does not carry a scheme it can never use.
 
-### 4d. Android SHA-1 fingerprints — read this one
+### Android SHA-1 fingerprints — read this one
 
 An Android OAuth client is bound to the certificate that signed the build. Every
 one of these is a *different* certificate:
@@ -119,7 +193,7 @@ eas credentials            # shows the fingerprints EAS holds
 For Play App Signing, the fingerprint is in the Play Console under
 Setup → App integrity.
 
-## 5. Sign in with Apple
+## Sign in with Apple
 
 Much less setup: no client IDs in `.env`, no fingerprints.
 
@@ -143,7 +217,7 @@ Sending the same string to both fails verification with a confusing error.
 `src/auth/providers.ts` does it correctly; mentioned here because it is easy to
 "simplify" by accident.
 
-## 6. You need a development build
+## You need a development build
 
 Native Google sign-in is a native module, so it **does not run in Expo Go**:
 

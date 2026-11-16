@@ -59,9 +59,16 @@ npm start          # then press i, a, or w
 ```
 
 The cookbook is a shared database, so it needs a backend before anyone can sign
-in. [docs/setup.md](docs/setup.md) walks through it — about twenty minutes on
-the free tier. Native Google sign-in also needs a development build rather than
-Expo Go, which is covered there too.
+in — one free Supabase project.
+
+```bash
+cp .env.example .env    # paste in your Supabase URL and anon key
+scripts/setup.sh        # migrations, functions, and what is still missing
+```
+
+[docs/setup.md](docs/setup.md) opens with a short iOS-and-Apple path (no Google
+Cloud, no fingerprints) and then covers everything else. Native sign-in needs a
+development build rather than Expo Go either way.
 
 ```bash
 npm test           # 117 unit tests over the domain logic and the data layer
