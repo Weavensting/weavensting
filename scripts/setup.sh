@@ -129,8 +129,17 @@ fi
 step "5. Sign in with Apple"
 # ---------------------------------------------------------------------------
 
+BUNDLE_ID="$(env_value BUNDLE_ID)"
 BUNDLE_ID="${BUNDLE_ID:-com.familycookbook.app}"
 echo "  Bundle ID: ${BOLD}$BUNDLE_ID${OFF}"
+
+if [ "$BUNDLE_ID" = "com.familycookbook.app" ]; then
+  bad "that is the placeholder, and it is very likely already registered to"
+  echo "      someone else. Set BUNDLE_ID in .env to something of your own"
+  echo "      (com.yourname.familycookbook) BEFORE the first build — changing"
+  echo "      it afterwards means a new App ID and redoing the Apple setup."
+  note_problem
+fi
 echo
 echo "  These two are done by hand — there is no API for either:"
 echo "    1. Apple Developer → Certificates, IDs & Profiles → your App ID"

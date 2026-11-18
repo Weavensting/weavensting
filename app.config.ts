@@ -84,6 +84,11 @@ const config: ExpoConfig = {
         photosPermission: 'Pick a photo of a recipe to add it to your cookbook.',
         cameraPermission:
           'Take a photo of a handwritten recipe card to add it to your cookbook.',
+        // The app never records audio — dictation is the keyboard's own
+        // microphone, which needs no permission from us. Left at its default
+        // this plugin would declare NSMicrophoneUsageDescription and add
+        // RECORD_AUDIO to the Android manifest for a capability we do not use.
+        microphonePermission: false,
       },
     ],
     // Only when Google sign-in is actually configured.

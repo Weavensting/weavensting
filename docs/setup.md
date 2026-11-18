@@ -54,15 +54,40 @@ tells you what is still missing. Safe to run as many times as you like.
   That is all native iOS sign-in needs. The Services ID, team ID and `.p8` key
   you will see in Apple's docs are for the *web* sign-in flow only.
 
-**5. Build it onto your phone:**
+**5. Build it onto your phone.** Expo Go will not do — Sign in with Apple is a
+native capability, so this has to be a real build.
+
+*On a Mac with Xcode*, plug the phone in and:
 
 ```bash
-npx expo run:ios                          # on a Mac with Xcode
-eas build -p ios --profile development    # or in the cloud, from any machine
+npx expo run:ios --device
 ```
 
-Expo Go will not do: Sign in with Apple is a native capability, so it has to be
-a real build.
+*Without a Mac*, build in Expo's cloud:
+
+```bash
+npm install -g eas-cli
+eas login                 # a free Expo account, separate from Apple's
+eas build -p ios --profile development
+```
+
+EAS asks for your Apple ID, then registers the App ID, the provisioning
+profile and the signing certificate for you. It can enable the Sign in with
+Apple capability on the App ID at the same time, which saves you step 4a.
+
+> **EAS builds do not read your `.env`** — it is gitignored, so it never
+> reaches the build server, and the app would come out saying "not set up yet".
+> Give EAS its own copy, once:
+>
+> ```bash
+> eas env:create --environment development --name BUNDLE_ID --value com.yourname.familycookbook
+> eas env:create --environment development --name EXPO_PUBLIC_SUPABASE_URL --value https://yourproject.supabase.co
+> eas env:create --environment development --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value eyJhbGci...
+> ```
+>
+> None of these are secret — the anon key is gated by row-level security and a
+> bundle ID is public — so a `preview` and `production` copy of the same three
+> is all the rest of it takes.
 
 **Optional, for reading handwritten recipe cards:**
 
