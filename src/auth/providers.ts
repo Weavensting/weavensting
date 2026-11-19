@@ -3,7 +3,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import type { Session } from '@supabase/supabase-js';
-import { config, isGoogleConfigured } from '../config';
+import { getConfig, isGoogleConfigured } from '../config';
 import { getSupabase } from '../data/supabase';
 
 /**
@@ -29,21 +29,21 @@ function configureGoogle(): void {
     // Supabase validates the ID token against the WEB client ID, on every
     // platform — this is the one that must also be set as the provider's client
     // ID in the Supabase dashboard.
-    webClientId: config.googleWebClientId,
-    iosClientId: config.googleIosClientId,
+    webClientId: getConfig().googleWebClientId,
+    iosClientId: getConfig().googleIosClientId,
     scopes: ['profile', 'email'],
   });
   googleConfigured = true;
 }
 
 export function isGoogleAvailable(): boolean {
-  return isGoogleConfigured && Platform.OS !== 'web';
+  return isGoogleConfigured() && Platform.OS !== 'web';
 }
 
 export async function signInWithGoogle(): Promise<Session> {
   const supabase = getSupabase();
   if (!supabase) throw new SignInError('Sign-in is not set up yet.', 'unavailable');
-  if (!isGoogleConfigured) {
+  if (!isGoogleConfigured()) {
     throw new SignInError('Google sign-in needs its client IDs. See docs/setup.md.', 'unavailable');
   }
 

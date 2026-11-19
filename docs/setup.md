@@ -17,6 +17,12 @@ project, no client IDs, and none of the SHA-1 fingerprint business.
 **1. Sign up at [supabase.com](https://supabase.com)** (free, no card), create a
 project, and copy the Project URL and anon public key from Settings → API.
 
+> **You can skip straight to the build.** A build with no Supabase values in
+> it opens a **Connect** screen on first launch, where you paste the project
+> URL and anon key on the phone itself. Nothing to rebuild when you get round
+> to making the project. The `.env` route below is still what you want for a
+> build you hand to the family — then nobody has to paste anything.
+
 **2. Fill in `.env`:**
 
 ```bash
@@ -255,6 +261,26 @@ Sign in with Apple is iOS-only and also needs a real build. Everything else —
 link import, manual entry, cooking, search, pantry — still runs in Expo Go.
 
 ---
+
+## Configuring on the phone instead
+
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are optional at
+build time. Leave them out and the app opens a **Connect** screen instead of
+the sign-in screen, takes the two values there, and keeps them on the device.
+
+This is for building before the backend exists. For a build you distribute,
+set them at build time — otherwise every person you share it with has to paste
+the same two strings.
+
+Build-time values win when both exist, so a build that was pointed at a project
+cannot be redirected by whatever is left on one device, and that build never
+shows the Connect screen. When the connection did come from the device,
+Settings offers a way to disconnect and point somewhere else.
+
+The screen checks before saving: it catches the dashboard URL (the usual wrong
+paste), rejects anything that is not a JWT, refuses the `service_role` key
+outright, and makes a real request to the project so a typo fails here rather
+than mysteriously at sign-in.
 
 ## Optional settings
 

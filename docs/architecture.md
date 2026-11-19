@@ -74,6 +74,30 @@ than retried forever.
 Recipes are soft-deleted. A tombstone is what lets a delete on one phone reach
 the rest of the family instead of the recipe reappearing at the next refresh.
 
+## Finding the project, then the account
+
+Two things must be true before the cookbook is reachable, and each has its own
+screen. `Gate` in `app/_layout.tsx` decides which one you see: **Connect** when
+the app does not know which Supabase project to talk to, **Sign in** when it
+does but nobody is signed in.
+
+The project can come from the build (`EXPO_PUBLIC_*`, inlined by Metro) or from
+the device (typed into Connect, kept in AsyncStorage). Build time wins, so a
+build deliberately pointed at a project cannot be redirected by what is left on
+one phone — and such a build never shows Connect at all. The device route
+exists so the app can be built and installed before the backend exists.
+
+Because the project can change while the app is running, `src/config.ts` is a
+small store rather than a constant, and `getSupabase()` throws away its client
+whenever the connection changes. A cached client would otherwise go on talking
+to the previous project for the rest of the session.
+
+The anon key is stored in AsyncStorage rather than anything encrypted, because
+it is not a secret: it ships inside every build of every Supabase app, and
+row-level security is what protects the data. The Connect screen does check for
+one real mistake — pasting the `service_role` key, which bypasses every policy
+— and refuses it.
+
 ## Signing in comes first
 
 A cookbook belongs to an account, and row-level security checks that account on
@@ -194,9 +218,10 @@ Staples — salt, flour, oil, water and friends — are assumed on hand, because
 
 ## Testing
 
-117 unit tests over the parts where correctness is not obvious: quantity
+129 unit tests over the parts where correctness is not obvious: quantity
 parsing, unit normalisation, ingredient line parsing, fraction formatting,
-duration extraction, schema.org extraction, name matching and search ranking.
+duration extraction, schema.org extraction, name matching, search ranking, and
+the checks on a hand-typed connection.
 
 The repository is tested against a stand-in server rather than Supabase,
 because what matters is the contract: the row the server returns is what gets

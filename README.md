@@ -59,7 +59,9 @@ npm start          # then press i, a, or w
 ```
 
 The cookbook is a shared database, so it needs a backend before anyone can sign
-in — one free Supabase project.
+in — one free Supabase project. You can build the app before making it: with no
+project configured, the app opens a **Connect** screen and takes the details on
+the phone.
 
 ```bash
 cp .env.example .env    # paste in your Supabase URL and anon key
@@ -71,7 +73,7 @@ Cloud, no fingerprints) and then covers everything else. Native sign-in needs a
 development build rather than Expo Go either way.
 
 ```bash
-npm test           # 117 unit tests over the domain logic and the data layer
+npm test           # 129 unit tests over the domain logic and the data layer
 npm run typecheck
 npm run export:web # static web build in dist/
 ```

@@ -1,6 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { getSupabase } from '../data/supabase';
-import { isCloudConfigured } from '../config';
+import { isCloudConfigured, subscribeConfig } from '../config';
 import { beginSession, endSession } from '../data/session';
 
 /**
@@ -25,7 +25,7 @@ const UNAVAILABLE: AuthState = { status: 'unavailable' };
 type Listener = () => void;
 
 class AuthStore {
-  private state: AuthState = isCloudConfigured ? { status: 'loading' } : UNAVAILABLE;
+  private state: AuthState = isCloudConfigured() ? { status: 'loading' } : UNAVAILABLE;
   private listeners = new Set<Listener>();
   private started = false;
 
@@ -38,16 +38,24 @@ class AuthStore {
     };
   };
 
-  /** Idempotent. Reads any stored session and then follows Supabase's events. */
+  /**
+   * Idempotent. Reads any stored session and then follows Supabase's events.
+   *
+   * A project can be chosen on the connect screen after the app has already
+   * started, so this waits for one rather than giving up the first time.
+   */
   start = (): void => {
     if (this.started) return;
-    this.started = true;
 
     const supabase = getSupabase();
     if (!supabase) {
       this.publish(UNAVAILABLE);
+      subscribeConfig(() => {
+        if (isCloudConfigured()) this.start();
+      });
       return;
     }
+    this.started = true;
 
     void supabase.auth.getSession().then(({ data }) => this.applySession(data.session ?? undefined));
     supabase.auth.onAuthStateChange((_event, session) => this.applySession(session ?? undefined));
@@ -81,7 +89,7 @@ class AuthStore {
 
   /** Test seam. */
   resetForTesting = (): void => {
-    this.state = isCloudConfigured ? { status: 'loading' } : UNAVAILABLE;
+    this.state = isCloudConfigured() ? { status: 'loading' } : UNAVAILABLE;
     this.started = false;
     this.listeners.clear();
   };

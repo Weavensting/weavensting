@@ -1,5 +1,5 @@
 import type { Nutrition, RecipeDraft } from '../domain/types';
-import { config, isCloudConfigured } from '../config';
+import { getConfig, isCloudConfigured } from '../config';
 import { getAccessToken } from '../auth/session';
 
 /**
@@ -43,7 +43,7 @@ export class ExtractionError extends Error {
 }
 
 export function isExtractionConfigured(): boolean {
-  return isCloudConfigured;
+  return isCloudConfigured();
 }
 
 async function callFunction<T>(name: string, body: unknown, signal?: AbortSignal): Promise<T> {
@@ -62,12 +62,12 @@ async function callFunction<T>(name: string, body: unknown, signal?: AbortSignal
 
   let response: Response;
   try {
-    response = await fetch(`${config.supabaseUrl}/functions/v1/${name}`, {
+    response = await fetch(`${getConfig().supabaseUrl}/functions/v1/${name}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
-        apikey: config.supabaseAnonKey!,
+        apikey: getConfig().supabaseAnonKey!,
       },
       body: JSON.stringify(body),
       signal,

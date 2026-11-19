@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { isCloudConfigured, isGoogleConfigured } from '../../src/config';
+import { clearConnection, isCloudConfigured, isGoogleConfigured } from '../../src/config';
+import { useConfig } from '../../src/state/useConfig';
 import { signOutEverywhere } from '../../src/auth/providers';
 import { displayName } from '../../src/auth/store';
 import { library } from '../../src/data/repository';
@@ -14,6 +15,7 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { recipes, pantry, cookbooks, online, pending, error } = useLibrary();
   const { status, user } = useAuth();
+  const { supabaseUrl, source } = useConfig();
 
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -71,7 +73,7 @@ export default function SettingsScreen() {
           ) : (
             <Body muted>
               Not signed in.
-              {!isGoogleConfigured && isCloudConfigured
+              {!isGoogleConfigured() && isCloudConfigured()
                 ? ' Google sign-in also needs its client IDs in .env.'
                 : ''}
               {Platform.OS === 'ios' ? ' Sign in with Apple works without them.' : ''}
@@ -110,6 +112,9 @@ export default function SettingsScreen() {
 
         <Card style={{ gap: spacing.sm }}>
           <Heading level={3}>Where your recipes live</Heading>
+          {supabaseUrl ? (
+            <Body muted numberOfLines={1} style={{ fontSize: 13 }}>{supabaseUrl}</Body>
+          ) : null}
           <Body muted>
             On the server, shared with everyone in the cookbook — one copy, so an edit on one phone
             is the same edit everywhere.
@@ -132,6 +137,29 @@ export default function SettingsScreen() {
             recipe reader on your own server, so your Claude API key never ships inside the app.
           </Body>
         </Card>
+
+        {source === 'device' ? (
+          <Button
+            label="Connect to a different project"
+            variant="secondary"
+            onPress={() =>
+              Alert.alert(
+                'Disconnect this project?',
+                'Recipes stay on the server. This phone will sign out and ask for a project again.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Disconnect',
+                    style: 'destructive',
+                    onPress: () => {
+                      void signOutEverywhere().then(() => clearConnection());
+                    },
+                  },
+                ],
+              )
+            }
+          />
+        ) : null}
 
         <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
           <Body muted style={{ fontSize: 12 }}>Family Cookbook 0.1.0</Body>

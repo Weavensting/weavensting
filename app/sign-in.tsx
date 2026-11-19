@@ -46,20 +46,6 @@ export default function SignInScreen() {
 
   if (status === 'loading') return <Loading />;
 
-  if (status === 'unavailable') {
-    return (
-      <Screen>
-        <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingTop: spacing.xxl }}>
-          <Heading level={1}>Not set up yet</Heading>
-          <Notice tone="warning" title="Needs a Supabase project">
-            The cookbook lives on your own backend, so it needs one before anyone can sign in. Add
-            the Supabase URL and anon key to .env and restart — docs/setup.md walks through it.
-          </Notice>
-        </ScrollView>
-      </Screen>
-    );
-  }
-
   const googleReady = isGoogleAvailable() || Platform.OS === 'web';
 
   return (

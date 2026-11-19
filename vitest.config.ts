@@ -16,6 +16,12 @@ export default defineConfig({
       // React Native ships Flow source Vite cannot parse; tests never touch the
       // native surface, so a minimal stub stands in for it.
       'react-native': path.resolve(__dirname, 'test/reactNativeStub.ts'),
+      // Likewise AsyncStorage, which the config store uses to remember which
+      // project this device is pointed at.
+      '@react-native-async-storage/async-storage': path.resolve(
+        __dirname,
+        'test/asyncStorageStub.ts',
+      ),
     },
   },
 });

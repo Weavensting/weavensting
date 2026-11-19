@@ -1,19 +1,32 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { config, isCloudConfigured } from '../config';
+import { getConfig, isCloudConfigured, subscribeConfig } from '../config';
 
 /**
- * Supabase client, created lazily so the app runs perfectly well before anyone
- * sets up a project. Everything works offline and on-device; the cloud only
- * adds sharing between phones and AI-assisted import.
+ * The Supabase client, built from whatever project the app is currently
+ * pointed at.
+ *
+ * Because that can be set on the device rather than at build time, the client
+ * is thrown away whenever the connection changes — otherwise the app would go
+ * on talking to the previous project for the rest of the session.
  */
 
 let client: SupabaseClient | undefined;
+let builtFor: string | undefined;
+
+subscribeConfig(() => {
+  client = undefined;
+  builtFor = undefined;
+});
 
 export function getSupabase(): SupabaseClient | undefined {
-  if (!isCloudConfigured) return undefined;
-  client ??= createClient(config.supabaseUrl!, config.supabaseAnonKey!, {
+  if (!isCloudConfigured()) return undefined;
+
+  const { supabaseUrl, supabaseAnonKey } = getConfig();
+  if (client && builtFor === supabaseUrl) return client;
+
+  client = createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: {
       storage: AsyncStorage,
       autoRefreshToken: true,
@@ -22,6 +35,7 @@ export function getSupabase(): SupabaseClient | undefined {
       detectSessionInUrl: Platform.OS === 'web',
     },
   });
+  builtFor = supabaseUrl;
   return client;
 }
 
